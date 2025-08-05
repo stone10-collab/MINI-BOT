@@ -1,9 +1,9 @@
-import fetch from 'node-fetch';
-import AdmZip from 'adm-zip';
-import fs from 'fs';
-import path from 'path';
-import { exec } from 'child_process';
-import os from 'os';
+const fetch = require('node-fetch');
+const AdmZip = require('adm-zip');
+const fs = require('fs');
+const path = require('path');
+const { exec, execSync } = require('child_process');
+const os = require('os');
 
 const ZIP_URL = 'https://github.com/PrinceXtremeX/MINI-BOT/archive/refs/heads/main.zip';
 const TEMP_DIR = path.join(os.tmpdir(), 'mini-bot');
@@ -34,6 +34,18 @@ function unzipWithAdmZip(zipPath, outputPath) {
   console.log('[📂] Extraction completed.');
 }
 
+// Function to install dependencies
+function installDependencies(folder) {
+  console.log('[📦] Installing dependencies...');
+  try {
+    execSync('npm install', { cwd: folder, stdio: 'inherit' });
+    console.log('[✅] Dependencies installed.');
+  } catch (err) {
+    console.error('[💥] Failed to install dependencies:', err.message);
+    process.exit(1);
+  }
+}
+
 // Function to start the bot
 function startBot(entry) {
   if (!fs.existsSync(entry)) {
@@ -54,6 +66,7 @@ function startBot(entry) {
   try {
     await downloadZip(ZIP_URL, ZIP_PATH);
     unzipWithAdmZip(ZIP_PATH, TEMP_DIR);
+    installDependencies(EXTRACTED_DIR); // ✅ INSTALL AVANT LANCEMENT
     startBot(ENTRY_FILE);
   } catch (err) {
     console.error('[💥] Error:', err.message);
