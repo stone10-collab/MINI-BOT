@@ -1,76 +1,61 @@
+import fetch from 'node-fetch';
+import AdmZip from 'adm-zip';
 import fs from 'fs';
-import https from 'https';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
-import unzipper from 'unzipper';
+import os from 'os';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const zipUrl = 'https://github.com/PrinceXtremeX/MINI-BOT/archive/refs/heads/main.zip';
-const zipPath = path.join(__dirname, 'bot.zip');
-const extractPath = path.join(__dirname, 'MINI-BOT-main');
-const mainScript = path.join(extractPath, 'index.js');
+const ZIP_URL = 'https://github.com/PrinceXtremeX/MINI-BOT/archive/refs/heads/main.zip';
+const TEMP_DIR = path.join(os.tmpdir(), 'mini-bot');
+const ZIP_PATH = path.join(TEMP_DIR, 'main.zip');
+const EXTRACTED_DIR = path.join(TEMP_DIR, 'MINI-BOT-main');
+const ENTRY_FILE = path.join(EXTRACTED_DIR, 'index.js');
 
-async function downloadZip(url, output) {
-  return new Promise((resolve, reject) => {
-    console.log('📥 Downloading bot ZIP file...');
-    const file = fs.createWriteStream(output);
-    https.get(url, (response) => {
-      if (response.statusCode !== 200) {
-        return reject(new Error(`Failed to download ZIP. Status Code: ${response.statusCode}`));
-      }
-      response.pipe(file);
-      file.on('finish', () => {
-        file.close(() => resolve());
-      });
-    }).on('error', (err) => {
-      fs.unlink(output, () => reject(err));
-    });
-  });
+// Create temp folder if not exists
+if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
+
+// Function to download ZIP
+async function downloadZip(url, dest) {
+  console.log('[⬇️] Downloading bot files from GitHub...');
+  const res = await fetch(url);
+
+  if (!res.ok) throw new Error(`Failed to download ZIP: ${res.status} ${res.statusText}`);
+
+  const buffer = await res.buffer();
+  fs.writeFileSync(dest, buffer);
+  console.log('[✅] ZIP file downloaded successfully.');
 }
 
-async function unzipFile(zipFile, destination) {
-  console.log('📦 Extracting ZIP...');
-  return fs.createReadStream(zipFile)
-    .pipe(unzipper.Extract({ path: destination }))
-    .promise();
+// Function to unzip with adm-zip
+function unzipWithAdmZip(zipPath, outputPath) {
+  console.log('[🧩] Extracting ZIP file...');
+  const zip = new AdmZip(zipPath);
+  zip.extractAllTo(outputPath, true);
+  console.log('[📂] Extraction completed.');
 }
 
-function startBot() {
-  if (!fs.existsSync(mainScript)) {
-    console.error('❌ main.js not found inside the extracted ZIP.');
-    return;
+// Function to start the bot
+function startBot(entry) {
+  if (!fs.existsSync(entry)) {
+    console.error('[❌] Bot entry file not found:', entry);
+    process.exit(1);
   }
-  console.log('🚀 Starting the WhatsApp bot...');
-  const botProcess = exec(`node ${mainScript}`);
 
-  botProcess.stdout.on('data', (data) => {
-    process.stdout.write(data);
-  });
+  console.log('[🚀] Starting the bot...');
+  const subprocess = exec(`node ${entry}`, { cwd: path.dirname(entry) });
 
-  botProcess.stderr.on('data', (data) => {
-    process.stderr.write(data);
-  });
-
-  botProcess.on('exit', (code) => {
-    console.log(`⚠️ Bot exited with code ${code}`);
-  });
+  subprocess.stdout.on('data', (data) => process.stdout.write(data));
+  subprocess.stderr.on('data', (data) => process.stderr.write(data));
+  subprocess.on('exit', (code) => console.log(`[📦] Bot exited with code ${code}`));
 }
 
-async function launch() {
+// Main logic
+(async () => {
   try {
-    if (fs.existsSync(extractPath)) {
-      console.log('♻️ Deleting old bot directory...');
-      fs.rmSync(extractPath, { recursive: true, force: true });
-    }
-
-    await downloadZip(zipUrl, zipPath);
-    await unzipFile(zipPath, __dirname);
-    fs.unlinkSync(zipPath); // delete zip after extraction
-    startBot();
+    await downloadZip(ZIP_URL, ZIP_PATH);
+    unzipWithAdmZip(ZIP_PATH, TEMP_DIR);
+    startBot(ENTRY_FILE);
   } catch (err) {
-    console.error('❌ Failed to launch the bot:', err.message);
+    console.error('[💥] Error:', err.message);
   }
-}
-
-launch();
+})();
