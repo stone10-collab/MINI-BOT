@@ -1,5 +1,5 @@
 
-<h1 align="center">🚀MINI-XTREME</h1>
+<h1 align="center">🚀MINI-BOT</h1>
 
 <p align="center">
   <img src="https://files.catbox.moe/p01dj2.jpg" width="300"/><br>
